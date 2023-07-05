@@ -256,7 +256,7 @@ public extension CalendarView {
 		return view
 	}
 	
-	func deselectable(_ canDeselectDates: Bool) -> Self {
+	func deselectable(_ canDeselectDates: Bool = true) -> Self {
 		deselectable { _ in canDeselectDates }
 	}
 }
