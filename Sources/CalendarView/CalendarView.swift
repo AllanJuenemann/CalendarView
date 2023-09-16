@@ -265,14 +265,16 @@ public extension CalendarView {
 
 extension CalendarView.Coordinator: UICalendarViewDelegate {
 	public func calendarView(_ calendarView: UICalendarView, decorationFor dateComponents: DateComponents) -> UICalendarView.Decoration? {
-		// UICalendarView doesn't provide a way to get notified when property visibleDateComponents changes.
-		// However, this delegate method is called whenever the user scrolls the view, which in turn
-		// allows us to read the current value of visibleDateComponents and update the binding.
-		if !isUpdatingView, let binding = visibleDateComponents {
-			let visibleComponents = calendarView.visibleDateComponents
-			
-			if binding.wrappedValue.yearMonth != visibleComponents.yearMonth {
-				binding.wrappedValue = visibleComponents
+		if #unavailable(iOS 16.2) {
+			// UICalendarView doesn't provide a way to get notified when property visibleDateComponents changes.
+			// However, this delegate method is called whenever the user scrolls the view, which in turn
+			// allows us to read the current value of visibleDateComponents and update the binding.
+			if !isUpdatingView, let binding = visibleDateComponents {
+				let visibleComponents = calendarView.visibleDateComponents
+				
+				if binding.wrappedValue.yearMonth != visibleComponents.yearMonth {
+					binding.wrappedValue = visibleComponents
+				}
 			}
 		}
 		
@@ -281,6 +283,10 @@ extension CalendarView.Coordinator: UICalendarViewDelegate {
 		}
 		
 		return nil
+	}
+	
+	public func calendarView(_ calendarView: UICalendarView, didChangeVisibleDateComponentsFrom previousDateComponents: DateComponents) {
+		visibleDateComponents?.wrappedValue = calendarView.visibleDateComponents
 	}
 }
 
