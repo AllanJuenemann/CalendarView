@@ -32,7 +32,9 @@ public extension UICalendarView.Decoration {
 	
 	static func customView(_ customView: @escaping () -> some View) -> Self {
 		.customView {
-			UIHostingController(rootView: customView()).view
+			let view = UIHostingController(rootView: customView()).view!
+			view.backgroundColor = .clear
+			return view
 		}
 	}
 }
