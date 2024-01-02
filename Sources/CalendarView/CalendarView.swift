@@ -44,6 +44,7 @@ public struct CalendarView: UIViewRepresentable {
 	private var canDeselectDate: ((DateComponents) -> Bool)?
 	private var decoratedDateComponents = Set<DateComponents>()
 	private var decoration: ((DateComponents) -> UICalendarView.Decoration)?
+	private var decorationChangeValue: (any Equatable)?
 	
 	// MARK: Initializers
 	
@@ -122,23 +123,20 @@ public struct CalendarView: UIViewRepresentable {
 		
 		// decorations
 		
-		let oldDecorations = context.coordinator.decoratedComponents
-		let newDecorations = Set(decoratedDateComponents.map(\.yearMonthDay))
+		context.coordinator.decoratedComponents = Set(decoratedDateComponents.map(\.yearMonthDay))
+		context.coordinator.decoration = decoration
 		
-		if oldDecorations != newDecorations {
-			context.coordinator.decoratedComponents = newDecorations
-			context.coordinator.decoration = decoration
+		// only reload components that are actually visible to avoid crashes
+		if let visibleMonth = calendar.date(from: calendarView.visibleDateComponents) {
+			var componentsToReload = [DateComponents]()
 			
-			// IMPORTANT: only reload decorations that actually changed and are visible
-			// otherwise UICalendarView will cause a crash
-			
-			let changes = oldDecorations.symmetricDifference(newDecorations)
-			let visibleYearMonth = calendarView.visibleDateComponents.yearMonth
-			let visibleChanges = changes.filter { $0.yearMonth == visibleYearMonth }
-			
-			if !visibleChanges.isEmpty {
-				calendarView.reloadDecorations(forDateComponents: Array(visibleChanges), animated: canAnimate)
+			for day in calendar.range(of: .day, in: .month, for: visibleMonth)! {
+				var components = calendarView.visibleDateComponents
+				components.day = day
+				componentsToReload.append(components)
 			}
+			
+			calendarView.reloadDecorations(forDateComponents: componentsToReload, animated: canAnimate)
 		}
 		
 		// selection
@@ -232,10 +230,11 @@ public extension CalendarView {
 // MARK: - Decorations
 
 public extension CalendarView {
-	func decorating(_ dateComponents: Set<DateComponents>, decoration: ((DateComponents) -> UICalendarView.Decoration)? = nil) -> Self {
+	func decorating(_ dateComponents: Set<DateComponents>, updatingOnChangeOf value: (any Equatable)? = nil, decoration: ((DateComponents) -> UICalendarView.Decoration)? = nil) -> Self {
 		var view = self
 		view.decoratedDateComponents = dateComponents
 		view.decoration = decoration
+		view.decorationChangeValue = value
 		return view
 	}
 }
