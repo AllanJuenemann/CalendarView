@@ -13,6 +13,6 @@ let package = Package(
     targets: [
         .target(
             name: "CalendarView",
-            dependencies: []),
+            resources: [.process("PrivacyInfo.xcprivacy")]),
     ]
 )
