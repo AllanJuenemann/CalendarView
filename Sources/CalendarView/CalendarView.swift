@@ -123,7 +123,6 @@ public struct CalendarView: UIViewRepresentable {
 		
 		// decorations
 		
-		context.coordinator.decoratedComponents = Set(decoratedDateComponents.map(\.yearMonthDay))
 		calendarView.reloadDecorationsForVisibleMonth(animated: canAnimate)
 		
 		// selection
@@ -164,7 +163,6 @@ public struct CalendarView: UIViewRepresentable {
 	public class Coordinator: NSObject {
 		var parent: CalendarView
 		var isUpdatingView = false
-		var decoratedComponents = Set<DateComponents>()
 		
 		init(_ parent: CalendarView) {
 			self.parent = parent
@@ -208,7 +206,7 @@ public extension CalendarView {
 public extension CalendarView {
 	func decorating(_ dateComponents: Set<DateComponents>, updatingOnChangeOf value: (any Equatable)? = nil, decoration: ((DateComponents) -> UICalendarView.Decoration)? = nil) -> Self {
 		var view = self
-		view.decoratedDateComponents = dateComponents
+		view.decoratedDateComponents = Set(dateComponents.map(\.yearMonthDay))
 		view.decoration = decoration
 		view.decorationChangeValue = value
 		return view
@@ -253,7 +251,7 @@ extension CalendarView.Coordinator: UICalendarViewDelegate {
 			}
 		}
 		
-		if decoratedComponents.contains(dateComponents.yearMonthDay) {
+		if parent.decoratedDateComponents.contains(year: dateComponents.year, month: dateComponents.month, day: dateComponents.day) {
 			return parent.decoration?(dateComponents) ?? .default()
 		}
 		
@@ -306,6 +304,14 @@ extension CalendarView.Coordinator: UICalendarSelectionMultiDateDelegate {
 }
 
 // MARK: - Helper
+
+private extension Set<DateComponents> {
+	func contains(year: Int?, month: Int?, day: Int?) -> Bool {
+		contains(.init(year: year, month: month, day: day)) ||
+		contains(.init(month: month, day: day)) ||
+		contains(.init(day: day))
+	}
+}
 
 private extension DateComponents {
 	var yearMonth: DateComponents {
