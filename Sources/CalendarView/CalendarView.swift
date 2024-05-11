@@ -25,6 +25,14 @@
 import SwiftUI
 
 public struct CalendarView: UIViewRepresentable {
+	struct Decoration {
+		var systemImage: String?
+		var image: String?
+		var color: Color?
+		var size: UICalendarView.DecorationSize?
+		var customView: AnyView?
+	}
+	
 	@Environment(\.calendar) private var calendar
 	@Environment(\.locale) private var locale
 	@Environment(\.timeZone) private var timeZone
@@ -38,9 +46,7 @@ public struct CalendarView: UIViewRepresentable {
 	private var canSelectDate: ((DateComponents) -> Bool)?
 	private var selectableChangeValue: (any Equatable)?
 	private var canDeselectDate: ((DateComponents) -> Bool)?
-	private var decoratedDateComponents = Set<DateComponents>()
-	private var decoration: ((DateComponents) -> UICalendarView.Decoration)?
-	private var decorationChangeValue: (any Equatable)?
+	private var decorations = [DateComponents: Decoration]()
 	
 	// MARK: Initializers
 	
@@ -204,12 +210,28 @@ public extension CalendarView {
 // MARK: - Decorations
 
 public extension CalendarView {
-	func decorating(_ dateComponents: Set<DateComponents>, updatingOnChangeOf value: (any Equatable)? = nil, decoration: ((DateComponents) -> UICalendarView.Decoration)? = nil) -> Self {
+	func decorating(_ dateComponents: Set<DateComponents>, systemImage: String? = nil, color: Color? = nil, size: UICalendarView.DecorationSize = .medium) -> Self {
 		var view = self
-		view.decoratedDateComponents = Set(dateComponents.map(\.yearMonthDay))
-		view.decoration = decoration
-		view.decorationChangeValue = value
+		view.add(Decoration(systemImage: systemImage, color: color, size: size), for: dateComponents)
 		return view
+	}
+	
+	func decorating(_ dateComponents: Set<DateComponents>, image: String, color: Color? = nil, size: UICalendarView.DecorationSize = .medium) -> Self {
+		var view = self
+		view.add(Decoration(image: image, color: color, size: size), for: dateComponents)
+		return view
+	}
+	
+	func decorating(_ dateComponents: Set<DateComponents>, customView: () -> some View) -> Self {
+		var view = self
+		view.add(Decoration(customView: AnyView(customView())), for: dateComponents)
+		return view
+	}
+	
+	private mutating func add(_ decoration: Decoration, for dateComponents: Set<DateComponents>) {
+		for key in dateComponents.compactMap(\.decorationKey) {
+			decorations[key] = decoration
+		}
 	}
 }
 
@@ -251,11 +273,7 @@ extension CalendarView.Coordinator: UICalendarViewDelegate {
 			}
 		}
 		
-		if parent.decoratedDateComponents.contains(year: dateComponents.year, month: dateComponents.month, day: dateComponents.day) {
-			return parent.decoration?(dateComponents) ?? .default()
-		}
-		
-		return nil
+		return parent.decorations.decorationFor(year: dateComponents.year, month: dateComponents.month, day: dateComponents.day)?.uiDecoration
 	}
 	
 	public func calendarView(_ calendarView: UICalendarView, didChangeVisibleDateComponentsFrom previousDateComponents: DateComponents) {
@@ -305,11 +323,11 @@ extension CalendarView.Coordinator: UICalendarSelectionMultiDateDelegate {
 
 // MARK: - Helper
 
-private extension Set<DateComponents> {
-	func contains(year: Int?, month: Int?, day: Int?) -> Bool {
-		contains(.init(year: year, month: month, day: day)) ||
-		contains(.init(month: month, day: day)) ||
-		contains(.init(day: day))
+private extension [DateComponents: CalendarView.Decoration] {
+	func decorationFor(year: Int?, month: Int?, day: Int?) -> Value? {
+		self[.init(year: year, month: month, day: day)] ?? 
+		self[.init(month: month, day: day)] ??
+		self[.init(day: day)]
 	}
 }
 
@@ -318,8 +336,45 @@ private extension DateComponents {
 		DateComponents(year: year, month: month)
 	}
 	
-	var yearMonthDay: DateComponents {
-		DateComponents(year: year, month: month, day: day)
+	var decorationKey: DateComponents? {
+		guard let day else {
+			return nil
+		}
+		
+		if let year, let month {
+			return .init(year: year, month: month, day: day)
+		}
+		
+		if let month {
+			return .init(month: month, day: day)
+		}
+		
+		return .init(day: day)
+	}
+}
+
+private extension CalendarView.Decoration {
+	var uiDecoration: UICalendarView.Decoration {
+		if let customView {
+			return .customView {
+				let view = UIHostingController(rootView: customView).view!
+				view.backgroundColor = .clear
+				return view
+			}
+		}
+		
+		let uiColor = color.flatMap(UIColor.init)
+		let size = size ?? .medium
+		
+		if let systemImage {
+			return .image(.init(systemName: systemImage), color: uiColor, size: size)
+		}
+		
+		if let image {
+			return .image(.init(named: image), color: uiColor, size: size)
+		}
+		
+		return .default(color: uiColor, size: size)
 	}
 }
 

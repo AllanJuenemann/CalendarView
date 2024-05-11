@@ -57,27 +57,19 @@ VStack {
 
 ### Using decorations
 
-Use the `decorating` modifier to specify which dates should be decorated.
+Use the `decorating` modifier to decorate specific days. 
 
 ```swift
 CalendarView()
-  .decorating(datesToDecorate)
+  .decorating([DateComponents(day: 16)])
 ```
 
 Decorations can also be customized.
 
 ```swift
 CalendarView()
-  .decorating(datesToDecorate) { dateComponents in
-    if dateComponents.day == specialDay {
-      return .customView {
-        Image(systemName: "star.fill")
-          .foregroundColor(.yellow)
-      }
-    }
-
-    return .default(color: .green, size: .small)
-  }
+  .decorating(specialDates, systemImage: "star.fill", color: .yellow)
+  .decorating(otherDates, color: .green, size: .small)
 ```
 
 ### Handling selections
