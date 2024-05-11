@@ -25,18 +25,14 @@
 import SwiftUI
 
 public struct CalendarView: UIViewRepresentable {
-	private enum Selection {
-		case singleDate(Binding<DateComponents?>)
-		case multiDate(Binding<[DateComponents]>)
-	}
-	
 	@Environment(\.calendar) private var calendar
 	@Environment(\.locale) private var locale
 	@Environment(\.timeZone) private var timeZone
 	
 	private let availableDateRange: DateInterval
 	private let visibleDateComponents: Binding<DateComponents>?
-	private let selection: Selection?
+	private var selection: Binding<DateComponents?>?
+	private var selections: Binding<[DateComponents]>?
 	
 	private var fontDesign = UIFontDescriptor.SystemDesign.default
 	private var canSelectDate: ((DateComponents) -> Bool)?
@@ -63,25 +59,29 @@ public struct CalendarView: UIViewRepresentable {
 	public init(availableDateRange: DateInterval = .init(start: .distantPast, end: .distantFuture), selection: Binding<DateComponents?>) {
 		self.availableDateRange = availableDateRange
 		self.visibleDateComponents = nil
-		self.selection = Selection.singleDate(selection)
+		self.selection = selection
+		self.selections = nil
 	}
 	
 	public init(availableDateRange: DateInterval = .init(start: .distantPast, end: .distantFuture), visibleDateComponents: Binding<DateComponents>, selection: Binding<DateComponents?>) {
 		self.availableDateRange = availableDateRange
 		self.visibleDateComponents = visibleDateComponents
-		self.selection = Selection.singleDate(selection)
+		self.selection = selection
+		self.selections = nil
 	}
 	
 	public init(availableDateRange: DateInterval = .init(start: .distantPast, end: .distantFuture), selection: Binding<[DateComponents]>) {
 		self.availableDateRange = availableDateRange
 		self.visibleDateComponents = nil
-		self.selection = Selection.multiDate(selection)
+		self.selections = selection
+		self.selection = nil
 	}
 	
 	public init(availableDateRange: DateInterval = .init(start: .distantPast, end: .distantFuture), visibleDateComponents: Binding<DateComponents>, selection: Binding<[DateComponents]>) {
 		self.availableDateRange = availableDateRange
 		self.visibleDateComponents = visibleDateComponents
-		self.selection = Selection.multiDate(selection)
+		self.selections = selection
+		self.selection = nil
 	}
 	
 	// MARK: - UIViewRepresentable
@@ -97,6 +97,8 @@ public struct CalendarView: UIViewRepresentable {
 	}
 	
 	public func updateUIView(_ calendarView: UICalendarView, context: Context) {
+		context.coordinator.parent = self
+		
 		context.coordinator.isUpdatingView = true
 		defer { context.coordinator.isUpdatingView = false }
 		
@@ -110,8 +112,6 @@ public struct CalendarView: UIViewRepresentable {
 		
 		// visible date components
 		
-		context.coordinator.visibleDateComponents = visibleDateComponents
-		
 		if let binding = visibleDateComponents {
 			let visibleYearMonth = calendarView.visibleDateComponents.yearMonth
 			let newYearMonth = binding.wrappedValue.yearMonth
@@ -124,79 +124,55 @@ public struct CalendarView: UIViewRepresentable {
 		// decorations
 		
 		context.coordinator.decoratedComponents = Set(decoratedDateComponents.map(\.yearMonthDay))
-		context.coordinator.decoration = decoration
-		
-		// only reload components that are actually visible to avoid crashes
-		if let visibleMonth = calendar.date(from: calendarView.visibleDateComponents) {
-			var componentsToReload = [DateComponents]()
-			
-			for day in calendar.range(of: .day, in: .month, for: visibleMonth)! {
-				var components = calendarView.visibleDateComponents
-				components.day = day
-				componentsToReload.append(components)
-			}
-			
-			calendarView.reloadDecorations(forDateComponents: componentsToReload, animated: canAnimate)
-		}
+		calendarView.reloadDecorationsForVisibleMonth(animated: canAnimate)
 		
 		// selection
 		
-		switch selection {
-		case .singleDate(let binding):
-			context.coordinator.selectedDate = binding
-			
+		if let selection {
 			if let dateSelection = calendarView.selectionBehavior as? UICalendarSelectionSingleDate {
-				if dateSelection.selectedDate != binding.wrappedValue {
-					dateSelection.setSelected(binding.wrappedValue, animated: canAnimate || binding.canAnimate)
+				if dateSelection.selectedDate != selection.wrappedValue {
+					dateSelection.setSelected(selection.wrappedValue, animated: canAnimate || selection.canAnimate)
 				}
 				
 				dateSelection.updateSelectableDates()
 			} else {
 				let dateSelection = UICalendarSelectionSingleDate(delegate: context.coordinator)
 				calendarView.selectionBehavior = dateSelection
-				dateSelection.setSelected(binding.wrappedValue, animated: canAnimate || binding.canAnimate)
+				dateSelection.setSelected(selection.wrappedValue, animated: canAnimate || selection.canAnimate)
 			}
-			
-		case .multiDate(let binding):
-			context.coordinator.selectedDates = binding
-			
+		} else if let selections {
 			if let dateSelections = calendarView.selectionBehavior as? UICalendarSelectionMultiDate {
-				if dateSelections.selectedDates != binding.wrappedValue {
-					dateSelections.setSelectedDates(binding.wrappedValue, animated: canAnimate || binding.canAnimate)
+				if dateSelections.selectedDates != selections.wrappedValue {
+					dateSelections.setSelectedDates(selections.wrappedValue, animated: canAnimate || selections.canAnimate)
 				}
 				
 				dateSelections.updateSelectableDates()
 			} else {
 				let dateSelections = UICalendarSelectionMultiDate(delegate: context.coordinator)
 				calendarView.selectionBehavior = dateSelections
-				dateSelections.setSelectedDates(binding.wrappedValue, animated: canAnimate || binding.canAnimate)
+				dateSelections.setSelectedDates(selections.wrappedValue, animated: canAnimate || selections.canAnimate)
 			}
-			
-		case nil:
+		} else {
 			// setting selectionBehavior reloads the view which can interfere
 			// with animations and scrolling, so only set if actually changed
 			if calendarView.selectionBehavior != nil {
 				calendarView.selectionBehavior = nil
 			}
 		}
-		
-		context.coordinator.canSelectDate = canSelectDate
-		context.coordinator.canDeselectDate = canDeselectDate
 	}
 	
 	public class Coordinator: NSObject {
+		var parent: CalendarView
 		var isUpdatingView = false
-		var visibleDateComponents: Binding<DateComponents>?
 		var decoratedComponents = Set<DateComponents>()
-		var decoration: ((DateComponents) -> UICalendarView.Decoration)?
-		var selectedDate: Binding<DateComponents?>?
-		var selectedDates: Binding<[DateComponents]>?
-		var canSelectDate: ((DateComponents) -> Bool)?
-		var canDeselectDate: ((DateComponents) -> Bool)?
+		
+		init(_ parent: CalendarView) {
+			self.parent = parent
+		}
 	}
 	
 	public func makeCoordinator() -> Coordinator {
-		Coordinator()
+		Coordinator(self)
 	}
 }
 
@@ -268,7 +244,7 @@ extension CalendarView.Coordinator: UICalendarViewDelegate {
 			// UICalendarView doesn't provide a way to get notified when property visibleDateComponents changes.
 			// However, this delegate method is called whenever the user scrolls the view, which in turn
 			// allows us to read the current value of visibleDateComponents and update the binding.
-			if !isUpdatingView, let binding = visibleDateComponents {
+			if !isUpdatingView, let binding = parent.visibleDateComponents {
 				let visibleComponents = calendarView.visibleDateComponents
 				
 				if binding.wrappedValue.yearMonth != visibleComponents.yearMonth {
@@ -278,14 +254,14 @@ extension CalendarView.Coordinator: UICalendarViewDelegate {
 		}
 		
 		if decoratedComponents.contains(dateComponents.yearMonthDay) {
-			return decoration?(dateComponents) ?? .default()
+			return parent.decoration?(dateComponents) ?? .default()
 		}
 		
 		return nil
 	}
 	
 	public func calendarView(_ calendarView: UICalendarView, didChangeVisibleDateComponentsFrom previousDateComponents: DateComponents) {
-		visibleDateComponents?.wrappedValue = calendarView.visibleDateComponents
+		parent.visibleDateComponents?.wrappedValue = calendarView.visibleDateComponents
 	}
 }
 
@@ -294,10 +270,10 @@ extension CalendarView.Coordinator: UICalendarViewDelegate {
 extension CalendarView.Coordinator: UICalendarSelectionSingleDateDelegate {
 	public func dateSelection(_ selection: UICalendarSelectionSingleDate, canSelectDate dateComponents: DateComponents?) -> Bool {
 		if let dateComponents {
-			return canSelectDate?(dateComponents) ?? true
+			return parent.canSelectDate?(dateComponents) ?? true
 		}
 		
-		if let canDeselectDate, let selectedDate = selection.selectedDate {
+		if let canDeselectDate = parent.canDeselectDate, let selectedDate = selection.selectedDate {
 			return canDeselectDate(selectedDate)
 		}
 		
@@ -305,7 +281,7 @@ extension CalendarView.Coordinator: UICalendarSelectionSingleDateDelegate {
 	}
 	
 	public func dateSelection(_ selection: UICalendarSelectionSingleDate, didSelectDate dateComponents: DateComponents?) {
-		selectedDate?.wrappedValue = dateComponents
+		parent.selection?.wrappedValue = dateComponents
 	}
 }
 
@@ -313,19 +289,19 @@ extension CalendarView.Coordinator: UICalendarSelectionSingleDateDelegate {
 
 extension CalendarView.Coordinator: UICalendarSelectionMultiDateDelegate {
 	public func multiDateSelection(_ selection: UICalendarSelectionMultiDate, canSelectDate dateComponents: DateComponents) -> Bool {
-		canSelectDate?(dateComponents) ?? true
+		parent.canSelectDate?(dateComponents) ?? true
 	}
 	
 	public func multiDateSelection(_ selection: UICalendarSelectionMultiDate, canDeselectDate dateComponents: DateComponents) -> Bool {
-		canDeselectDate?(dateComponents) ?? true
+		parent.canDeselectDate?(dateComponents) ?? true
 	}
 	
 	public func multiDateSelection(_ selection: UICalendarSelectionMultiDate, didSelectDate dateComponents: DateComponents) {
-		selectedDates?.wrappedValue = selection.selectedDates
+		parent.selections?.wrappedValue = selection.selectedDates
 	}
 	
 	public func multiDateSelection(_ selection: UICalendarSelectionMultiDate, didDeselectDate dateComponents: DateComponents) {
-		selectedDates?.wrappedValue = selection.selectedDates
+		parent.selections?.wrappedValue = selection.selectedDates
 	}
 }
 
