@@ -17,14 +17,18 @@ var body: some View {
 }
 ```
 
+<img src="/Images/calendar.png" width="200px" />
+
 ### Configuring the calendar
 
 CalendarView uses the [calendar](https://developer.apple.com/documentation/swiftui/environmentvalues/calendar), [time zone](https://developer.apple.com/documentation/swiftui/environmentvalues/timezone) and [locale](https://developer.apple.com/documentation/swiftui/environmentvalues/locale) from the environment.
 
 ```swift
 CalendarView()
-  .environment(\.locale, .init(identifier: "de"))
+  .environment(\.locale, .init(identifier: "ja"))
 ```
+
+<img src="/Images/calendar_ja.png" width="200px" />
 
 The [font design](https://developer.apple.com/documentation/uikit/uifontdescriptor/systemdesign) can be configured by using the `fontDesign` modifier.
 
@@ -33,11 +37,15 @@ CalendarView()
   .fontDesign(.serif)
 ```
 
+<img src="/Images/calendar_serif.png" width="200px" />
+
 You can also set the available date range.
 
 ```swift
-CalendarView(availableDateRange: thisYear)
+CalendarView(availableDateRange: specialEvent)
 ```
+
+<img src="/Images/calendar_range.png" width="200px" />
 
 ### Updating visible components
 
@@ -69,8 +77,10 @@ Decorations can also be customized.
 ```swift
 CalendarView()
   .decorating(specialDates, systemImage: "star.fill", color: .yellow)
-  .decorating(otherDates, color: .green, size: .small)
+  .decorating(otherDates, color: .green, size: .large)
 ```
+
+<img src="/Images/calendar_decorations.png" width="200px" />
 
 ### Handling selections
 
@@ -79,6 +89,8 @@ CalendarView supports selections of single and multiple dates.
 ```swift
 CalendarView(selection: $selectedDates)
 ```
+
+<img src="/Images/calendar_selections.png" width="200px" />
 
 You can also configure which dates are selectable and deselectable.
 
