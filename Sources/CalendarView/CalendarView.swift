@@ -30,7 +30,7 @@ public struct CalendarView: UIViewRepresentable {
 		var image: String?
 		var color: Color?
 		var size: UICalendarView.DecorationSize?
-		var customView: AnyView?
+		var customView: ((DateComponents) -> AnyView)?
 	}
 	
 	@Environment(\.calendar) private var calendar
@@ -222,9 +222,15 @@ public extension CalendarView {
 		return view
 	}
 	
-	func decorating(_ dateComponents: Set<DateComponents>, customView: () -> some View) -> Self {
+	func decorating(_ dateComponents: Set<DateComponents>, customView: @escaping () -> some View) -> Self {
 		var view = self
-		view.add(Decoration(customView: AnyView(customView())), for: dateComponents)
+		view.add(Decoration(customView: { _ in AnyView(customView()) }), for: dateComponents)
+		return view
+	}
+	
+	func decorating(_ dateComponents: Set<DateComponents>, customView: @escaping (DateComponents) -> some View) -> Self {
+		var view = self
+		view.add(Decoration(customView: { AnyView(customView($0)) }), for: dateComponents)
 		return view
 	}
 	
@@ -273,7 +279,30 @@ extension CalendarView.Coordinator: UICalendarViewDelegate {
 			}
 		}
 		
-		return parent.decorations.decorationFor(year: dateComponents.year, month: dateComponents.month, day: dateComponents.day)?.uiDecoration
+		guard let decoration = parent.decorations.decorationFor(year: dateComponents.year, month: dateComponents.month, day: dateComponents.day) else {
+			return nil
+		}
+		
+		if let customView = decoration.customView {
+			return .customView {
+				let view = UIHostingController(rootView: customView(dateComponents)).view!
+				view.backgroundColor = .clear
+				return view
+			}
+		}
+		
+		let uiColor = decoration.color.flatMap(UIColor.init)
+		let size = decoration.size ?? .medium
+		
+		if let systemImage = decoration.systemImage {
+			return .image(.init(systemName: systemImage), color: uiColor, size: size)
+		}
+		
+		if let image = decoration.image {
+			return .image(.init(named: image), color: uiColor, size: size)
+		}
+		
+		return .default(color: uiColor, size: size)
 	}
 	
 	public func calendarView(_ calendarView: UICalendarView, didChangeVisibleDateComponentsFrom previousDateComponents: DateComponents) {
@@ -350,31 +379,6 @@ private extension DateComponents {
 		}
 		
 		return .init(day: day)
-	}
-}
-
-private extension CalendarView.Decoration {
-	var uiDecoration: UICalendarView.Decoration {
-		if let customView {
-			return .customView {
-				let view = UIHostingController(rootView: customView).view!
-				view.backgroundColor = .clear
-				return view
-			}
-		}
-		
-		let uiColor = color.flatMap(UIColor.init)
-		let size = size ?? .medium
-		
-		if let systemImage {
-			return .image(.init(systemName: systemImage), color: uiColor, size: size)
-		}
-		
-		if let image {
-			return .image(.init(named: image), color: uiColor, size: size)
-		}
-		
-		return .default(color: uiColor, size: size)
 	}
 }
 
