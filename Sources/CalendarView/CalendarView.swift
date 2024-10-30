@@ -115,6 +115,7 @@ public struct CalendarView: UIViewRepresentable {
 		calendarView.fontDesign = fontDesign
 		
 		let canAnimate = context.transaction.animation != nil
+		let visibleYearMonthAtStartOfUpdate = calendarView.visibleDateComponents.yearMonth
 		
 		// visible date components
 		
@@ -129,7 +130,10 @@ public struct CalendarView: UIViewRepresentable {
 		
 		// decorations
 		
-		calendarView.reloadDecorationsForVisibleMonth(animated: canAnimate)
+		if calendarView.visibleDateComponents.yearMonth == visibleYearMonthAtStartOfUpdate {
+			// no need to reload decorations if visible date components already changed
+			calendarView.reloadDecorationsForVisibleMonth(animated: canAnimate)
+		}
 		
 		// selection
 		
