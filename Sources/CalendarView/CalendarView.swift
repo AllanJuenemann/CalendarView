@@ -111,20 +111,41 @@ public struct CalendarView: UIViewRepresentable {
 		calendarView.calendar = calendar
 		calendarView.locale = locale
 		calendarView.timeZone = timeZone
-		calendarView.availableDateRange = availableDateRange
 		calendarView.fontDesign = fontDesign
 		
 		let canAnimate = context.transaction.animation != nil
 		let visibleYearMonthAtStartOfUpdate = calendarView.visibleDateComponents.yearMonth
 		
+		// available date range
+		
+		// Make sure the currently visible date components are within range before updating
+		// availableDateRange. Otherwise, UICalendarView may throw an exception or behave
+		// in an unexpected way due to internal inconsistencies.
+		if let visibleDate = calendar.date(from: calendarView.visibleDateComponents), !availableDateRange.contains(visibleDate) {
+			let newVisibleDate = visibleDate < availableDateRange.start ? availableDateRange.start : availableDateRange.end
+			calendarView.visibleDateComponents = calendar.dateComponents([.year, .month], from: newVisibleDate)
+		}
+		
+		calendarView.availableDateRange = availableDateRange
+		
 		// visible date components
 		
 		if let binding = visibleDateComponents {
-			let visibleYearMonth = calendarView.visibleDateComponents.yearMonth
-			let newYearMonth = binding.wrappedValue.yearMonth
-			
-			if newYearMonth != visibleYearMonth {
-				calendarView.setVisibleDateComponents(newYearMonth, animated: canAnimate || binding.canAnimate)
+			if let visibleDate = calendar.date(from: binding.wrappedValue) {
+				// UICalendarView.setVisibleDateComponents throws an exception
+				// if the new value is not within availableDateRange
+				if availableDateRange.contains(visibleDate) {
+					if binding.wrappedValue.yearMonth != calendarView.visibleDateComponents.yearMonth {
+						calendarView.setVisibleDateComponents(binding.wrappedValue, animated: canAnimate || binding.canAnimate)
+					}
+				} else {
+					let newVisibleDate = visibleDate < availableDateRange.start ? availableDateRange.start : availableDateRange.end
+					calendarView.visibleDateComponents = calendar.dateComponents([.year, .month], from: newVisibleDate)
+					
+					DispatchQueue.main.async {
+						binding.wrappedValue = calendarView.visibleDateComponents
+					}
+				}
 			}
 		}
 		
