@@ -128,7 +128,48 @@ public struct CalendarView: UIViewRepresentable {
 		
 		calendarView.availableDateRange = availableDateRange
 		
+		// decorations
+		
+		if calendarView.visibleDateComponents.yearMonth == visibleYearMonthAtStartOfUpdate {
+			// no need to reload decorations if visible date components already changed
+			calendarView.reloadDecorationsForVisibleMonth(animated: canAnimate)
+		}
+		
+		// selection
+		
+		if let selection {
+			if let dateSelection = calendarView.selectionBehavior as? UICalendarSelectionSingleDate {
+				if dateSelection.selectedDate?.yearMonthDay != selection.wrappedValue?.yearMonthDay {
+					dateSelection.setSelected(selection.wrappedValue, animated: canAnimate || selection.canAnimate)
+				}
+				
+				dateSelection.updateSelectableDates()
+			} else {
+				let dateSelection = UICalendarSelectionSingleDate(delegate: context.coordinator)
+				calendarView.selectionBehavior = dateSelection
+				dateSelection.setSelected(selection.wrappedValue, animated: canAnimate || selection.canAnimate)
+			}
+		} else if let selections {
+			if let dateSelections = calendarView.selectionBehavior as? UICalendarSelectionMultiDate {
+				dateSelections.setSelectedDates(selections.wrappedValue, animated: canAnimate || selections.canAnimate)
+				dateSelections.updateSelectableDates()
+			} else {
+				let dateSelections = UICalendarSelectionMultiDate(delegate: context.coordinator)
+				calendarView.selectionBehavior = dateSelections
+				dateSelections.setSelectedDates(selections.wrappedValue, animated: canAnimate || selections.canAnimate)
+			}
+		} else {
+			// setting selectionBehavior reloads the view which can interfere
+			// with animations and scrolling, so only set if actually changed
+			if calendarView.selectionBehavior != nil {
+				calendarView.selectionBehavior = nil
+			}
+		}
+		
 		// visible date components
+		
+		// Selecting single dates and setting visible date components both potentially scroll the calendar.
+		// But the visible date components should have the last say because it reflects what is actually shown.
 		
 		if let binding = visibleDateComponents {
 			if let visibleDate = calendar.date(from: binding.wrappedValue) {
@@ -146,47 +187,6 @@ public struct CalendarView: UIViewRepresentable {
 						binding.wrappedValue = calendarView.visibleDateComponents
 					}
 				}
-			}
-		}
-		
-		// decorations
-		
-		if calendarView.visibleDateComponents.yearMonth == visibleYearMonthAtStartOfUpdate {
-			// no need to reload decorations if visible date components already changed
-			calendarView.reloadDecorationsForVisibleMonth(animated: canAnimate)
-		}
-		
-		// selection
-		
-		if let selection {
-			if let dateSelection = calendarView.selectionBehavior as? UICalendarSelectionSingleDate {
-				if dateSelection.selectedDate != selection.wrappedValue {
-					dateSelection.setSelected(selection.wrappedValue, animated: canAnimate || selection.canAnimate)
-				}
-				
-				dateSelection.updateSelectableDates()
-			} else {
-				let dateSelection = UICalendarSelectionSingleDate(delegate: context.coordinator)
-				calendarView.selectionBehavior = dateSelection
-				dateSelection.setSelected(selection.wrappedValue, animated: canAnimate || selection.canAnimate)
-			}
-		} else if let selections {
-			if let dateSelections = calendarView.selectionBehavior as? UICalendarSelectionMultiDate {
-				if dateSelections.selectedDates != selections.wrappedValue {
-					dateSelections.setSelectedDates(selections.wrappedValue, animated: canAnimate || selections.canAnimate)
-				}
-				
-				dateSelections.updateSelectableDates()
-			} else {
-				let dateSelections = UICalendarSelectionMultiDate(delegate: context.coordinator)
-				calendarView.selectionBehavior = dateSelections
-				dateSelections.setSelectedDates(selections.wrappedValue, animated: canAnimate || selections.canAnimate)
-			}
-		} else {
-			// setting selectionBehavior reloads the view which can interfere
-			// with animations and scrolling, so only set if actually changed
-			if calendarView.selectionBehavior != nil {
-				calendarView.selectionBehavior = nil
 			}
 		}
 	}
@@ -389,6 +389,10 @@ private extension DateComponents {
 	var yearMonth: DateComponents {
 		DateComponents(year: year, month: month)
 	}
+    
+    var yearMonthDay: DateComponents {
+        DateComponents(year: year, month: month, day: day)
+    }
 	
 	var decorationKey: DateComponents? {
 		guard let day else {
