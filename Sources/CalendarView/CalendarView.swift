@@ -371,6 +371,12 @@ extension CalendarView.Coordinator: UICalendarSelectionMultiDateDelegate {
 	}
 	
 	public func multiDateSelection(_ selection: UICalendarSelectionMultiDate, didDeselectDate dateComponents: DateComponents) {
+		// workaround for bug in UICalendarView where deselected date components
+		// do not match programmatically selected date components
+		selection.selectedDates.removeAll {
+			$0.yearMonthDay == dateComponents.yearMonthDay
+		}
+		
 		parent.selections?.wrappedValue = selection.selectedDates
 	}
 }
