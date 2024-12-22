@@ -46,6 +46,7 @@ public struct CalendarView: UIViewRepresentable {
 	private var canSelectDate: ((DateComponents) -> Bool)?
 	private var selectableChangeValue: (any Equatable)?
 	private var canDeselectDate: ((DateComponents) -> Bool)?
+    private var canDecorate = true
 	private var decorations = [DateComponents: Decoration]()
 	
 	// MARK: Initializers
@@ -112,6 +113,7 @@ public struct CalendarView: UIViewRepresentable {
 		calendarView.locale = locale
 		calendarView.timeZone = timeZone
 		calendarView.fontDesign = fontDesign
+        calendarView.wantsDateDecorations = canDecorate
 		
 		let canAnimate = context.transaction.animation != nil
 		let visibleYearMonthAtStartOfUpdate = calendarView.visibleDateComponents.yearMonth
@@ -130,10 +132,12 @@ public struct CalendarView: UIViewRepresentable {
 		
 		// decorations
 		
-		if calendarView.visibleDateComponents.yearMonth == visibleYearMonthAtStartOfUpdate {
-			// no need to reload decorations if visible date components already changed
-			calendarView.reloadDecorationsForVisibleMonth(animated: canAnimate)
-		}
+        if calendarView.wantsDateDecorations {
+            if calendarView.visibleDateComponents.yearMonth == visibleYearMonthAtStartOfUpdate {
+                // no need to reload decorations if visible date components already changed
+                calendarView.reloadDecorationsForVisibleMonth(animated: canAnimate)
+            }
+        }
 		
 		// selection
 		
@@ -235,6 +239,12 @@ public extension CalendarView {
 // MARK: - Decorations
 
 public extension CalendarView {
+    func decorationsDisabled(_ disabled: Bool = true) -> Self {
+        var view = self
+        view.canDecorate = !disabled
+        return view
+    }
+    
 	func decorating(_ dateComponents: Set<DateComponents>, systemImage: String? = nil, color: Color? = nil, size: UICalendarView.DecorationSize = .medium) -> Self {
 		var view = self
 		view.add(Decoration(systemImage: systemImage, color: color, size: size), for: dateComponents)
